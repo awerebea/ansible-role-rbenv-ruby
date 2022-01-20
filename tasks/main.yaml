@@ -1,0 +1,226 @@
+---
+# Install Ruby with Rbenv
+
+- name: Check Rbenv version.
+  shell: >
+    set -o pipefail && {{ rbenv_install_dir }}/bin/rbenv --version |
+    grep -Eo "[0-9]{1,}(\.[0-9]{1,}){0,}" | head -n1
+  args:
+    executable: /usr/bin/bash
+  changed_when: false
+  failed_when: false
+  register: rbenv_curr_ver
+
+- name: Filter current version stdout.
+  set_fact:
+    rbenv_current_ver: '{{ rbenv_curr_ver.stdout |
+    regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+  when: rbenv_curr_ver.rc == 0
+
+- name: Filter desired Rbenv version.
+  set_fact:
+    rbenv_desired_ver: '{{ rbenv_version |
+    regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+  when: rbenv_version is defined
+
+- block:
+    - name: Create missing directories.
+      block:
+        - name: Get status of directories.
+          stat:
+            path: '{{ item }}'
+          register: rbenv_dirstatus
+          with_items:
+            - '{{ rbenv_download_dir }}'
+            - '{{ rbenv_install_dir }}'
+            - '{{ rbenv_install_dir }}/plugins/ruby-build'
+
+        - name: Create directories in a loop.
+          include_tasks: create-dir.yaml
+          vars:
+            dir_path: '{{ item.item }}'
+          with_items: '{{ rbenv_dirstatus.results }}'
+          when: not item.stat.exists and not item.item == ''
+
+    - name: Update status of directories.
+      stat:
+        path: '{{ item }}'
+      register: rbenv_dirstatus
+      with_items:
+        - '{{ rbenv_download_dir }}'
+        - '{{ rbenv_install_dir }}'
+        - '{{ rbenv_install_dir }}/plugins/ruby-build'
+
+    - name: Determine latest release number.
+      block:
+        - name: Ensure pip3 is installed.
+          apt:
+            name: python3-pip
+            state: present
+          become: true
+
+        - name: Ensure required python module is installed.
+          pip:
+            name: github3.py
+
+        - name: Get latest release tag.
+          community.general.github_release:
+            user: rbenv
+            repo: rbenv
+            action: latest_release
+          register: rbenv_latest_release
+
+        - name: Filter release number.
+          set_fact:
+            rbenv_latest_release_tag: '{{ rbenv_latest_release.tag |
+            regex_search("([0-9]{1,}\.)+[0-9]{1,}") }}'
+
+      when: rbenv_version is not defined
+
+    - name: Define release number.
+      set_fact:
+        rbenv_release_number: "{{ rbenv_desired_ver
+        if (rbenv_desired_ver is defined) else rbenv_latest_release_tag }}"
+
+    - name: Download and extract the archive.
+      unarchive:
+        src: "https://github.com/rbenv/rbenv/archive/refs/tags/\
+        v{{ rbenv_release_number }}.tar.gz"
+        dest: '{{ rbenv_download_dir }}'
+        remote_src: true
+        mode: 0755
+      become: '{{ not rbenv_dirstatus.results[0].stat.writeable }}'
+
+    - name: Copy Rbenv directory into place.
+      copy:
+        src: '{{ rbenv_download_dir }}/rbenv-{{ rbenv_release_number }}/'
+        dest: '{{ rbenv_install_dir }}/'
+        mode: 0755
+        directory_mode: true
+        remote_src: true
+      become: '{{ not rbenv_dirstatus.results[1].stat.writeable }}'
+
+    - name: Install using make.
+      shell: cd {{ rbenv_install_dir }} && src/configure && make -C src
+      args:
+        executable: /usr/bin/bash
+      become: '{{ not rbenv_dirstatus.results[1].stat.writeable }}'
+
+    - name: Filter desired Ruby-build version.
+      set_fact:
+        ruby_build_desired_ver: '{{ ruby_build_version |
+        regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+      when: ruby_build_version is defined
+
+    - name: Install Ruby-build plugin.
+      block:
+        - name: Clone repository from GitHub.
+          git:
+            repo: https://github.com/rbenv/ruby-build.git
+            dest: '{{ rbenv_install_dir }}/plugins/ruby-build'
+            version: "{{ 'v' + ruby_build_desired_ver
+            if (ruby_build_desired_ver is defined)
+            else 'master' }}"
+
+      rescue:
+        - name: Remove local repo directory in case of cloning failure.
+          file:
+            path: '{{ rbenv_install_dir }}/plugins/ruby-build'
+            state: absent
+
+        - name: Try to cleanly clone the repository after a failed attempt.
+          git:
+            repo: https://github.com/rbenv/ruby-build.git
+            dest: '{{ rbenv_install_dir }}/plugins/ruby-build'
+            version: "{{ 'v' + ruby_build_desired_ver
+            if (ruby_build_desired_ver is defined)
+            else 'master' }}"
+
+      become: '{{ not rbenv_dirstatus.results[2].stat.writeable }}'
+
+  # Conditions for starting basic tasks: Rbenv is not installed at the
+  # desired/default rbenv_install_dir/bin directory path, or the installed
+  # and desired versions do not match, or a force upgrade to the latest version
+  # is defined (in which case the desired version should not be determined).
+  when: >
+    rbenv_curr_ver.rc !=0
+    or (rbenv_desired_ver is defined
+    and rbenv_current_ver is
+    version(rbenv_desired_ver, '!=', version_type='strict'))
+    or (update_apps is defined
+    and ('all' in update_apps or 'rbenv' in update_apps | lower))
+
+- name: Install/uninstall desired Ruby version.
+  block:
+    - name: Filter desired ruby version.
+      set_fact:
+        ruby_desired_ver: '{{ ruby_version |
+        regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+
+    - name: Install Ruby.
+      block:
+        - name: Check Ruby version.
+          shell: >
+            set -o pipefail &&
+            eval "$({{ rbenv_install_dir }}/bin/rbenv init - bash)" &&
+            ruby -v | grep -Eo "[0-9]{1,}(\.[0-9]{1,}){0,}" | head -n1
+          args:
+            executable: /usr/bin/bash
+          changed_when: false
+          failed_when: false
+          register: ruby_curr_ver
+
+        - name: Filter current version stdout.
+          set_fact:
+            ruby_current_ver: '{{ ruby_curr_ver.stdout |
+            regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+          when: ruby_curr_ver.rc == 0
+
+        - name: Installation.
+          block:
+            - block:
+                - name: Try to switch to desired version globally.
+                  shell: >
+                    eval "$({{ rbenv_install_dir }}/bin/rbenv init - bash)" &&
+                    {{ rbenv_install_dir }}/bin/rbenv global
+                    {{ ruby_desired_ver }}
+                  args:
+                    executable: /usr/bin/bash
+
+              rescue:
+                - name: Install desired version if attempt to switch failed.
+                  shell: >
+                    eval "$({{ rbenv_install_dir }}/bin/rbenv init - bash)" &&
+                    {{ rbenv_install_dir }}/bin/rbenv install
+                    {{ ruby_desired_ver }}
+                  args:
+                    executable: /usr/bin/bash
+
+                - name: Set installed version globally.
+                  shell: >
+                    eval "$({{ rbenv_install_dir }}/bin/rbenv init - bash)" &&
+                    {{ rbenv_install_dir }}/bin/rbenv global
+                    {{ ruby_desired_ver }}
+                  args:
+                    executable: /usr/bin/bash
+
+          when: >
+            ruby_curr_ver.rc !=0
+            or (ruby_desired_ver is defined
+            and ruby_current_ver is
+            version(ruby_desired_ver, '!=', version_type='strict'))
+            or (update_apps is defined
+            and ('all' in update_apps or 'ruby' in update_apps | lower))
+
+      when: ruby_action | lower == 'install'
+
+    - name: Uninstall Ruby.
+      block:
+        - name: Remove desired version.
+          file:
+            path: '{{ rbenv_install_dir }}/versions/{{ ruby_desired_ver }}'
+            state: absent
+
+      when: ruby_action | lower == 'uninstall'
+
+  when: ruby_version is defined

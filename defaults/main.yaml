@@ -1,0 +1,7 @@
+---
+# rbenv_version: 1.2.0
+# ruby_build_version: 20211227
+# ruby_version: 3.1.0
+rbenv_install_dir: $HOME/.rbenv
+rbenv_download_dir: /tmp
+ruby_action: install
