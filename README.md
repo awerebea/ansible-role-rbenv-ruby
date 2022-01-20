@@ -52,8 +52,8 @@ Follow instructions from to [set up rbenv shell integration](https://github.com/
 
 **NOTE:** By default, the base tasks of a role are skipped if the application is already installed in the desired
 <br />directory and no version upgrade is required.
-<br />&nbsp;&nbsp;&nbsp;&nbsp;If you want to force an update to the latest available release versions of Rbenv and Ruby-build, you can force base role
-<br />tasks to run by defining the `update_apps` variable and adding `rbenv` or `all` to the list. For example:
+<br />&nbsp;&nbsp;&nbsp;&nbsp;If you want to force an update to the latest available release versions of Rbenv and Ruby-build, you can force
+<br />base role tasks to run by defining the `update_apps` variable and adding `rbenv` or `all` to the list. For example:
 ``` bash
 $ ansible-playbook main.yaml -e "update_apps=[rbenv]"
 ```
