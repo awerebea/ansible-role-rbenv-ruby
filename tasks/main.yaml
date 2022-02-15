@@ -54,7 +54,7 @@
     - name: Determine latest release number.
       block:
         - name: Ensure pip3 is installed.
-          apt:
+          package:
             name: python3-pip
             state: present
           become: true
@@ -188,6 +188,22 @@
                     executable: /usr/bin/bash
 
               rescue:
+                - name: Ensure dependencies are installed.
+                  apt:
+                    name:
+                      - libssl-dev
+                    state: present
+                  when: ansible_os_family == 'Debian'
+                  become: true
+
+                - name: Ensure dependencies are installed.
+                  package:
+                    name:
+                      - openssl-devel
+                    state: present
+                  when: ansible_os_family == 'RedHat'
+                  become: true
+
                 - name: Install desired version if attempt to switch failed.
                   shell: >
                     eval "$({{ rbenv_install_dir }}/bin/rbenv init - bash)" &&
