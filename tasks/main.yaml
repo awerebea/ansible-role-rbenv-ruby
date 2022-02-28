@@ -14,13 +14,13 @@
 - name: Filter current version stdout.
   set_fact:
     rbenv_current_ver: '{{ rbenv_curr_ver.stdout |
-    regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+      regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
   when: rbenv_curr_ver.rc == 0
 
 - name: Filter desired Rbenv version.
   set_fact:
     rbenv_desired_ver: '{{ rbenv_version |
-    regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+      regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
   when: rbenv_version is defined
 
 - block:
@@ -73,19 +73,19 @@
         - name: Filter release number.
           set_fact:
             rbenv_latest_release_tag: '{{ rbenv_latest_release.tag |
-            regex_search("([0-9]{1,}\.)+[0-9]{1,}") }}'
+              regex_search("([0-9]{1,}\.)+[0-9]{1,}") }}'
 
       when: rbenv_version is not defined
 
     - name: Define release number.
       set_fact:
         rbenv_release_number: "{{ rbenv_desired_ver
-        if (rbenv_desired_ver is defined) else rbenv_latest_release_tag }}"
+          if (rbenv_desired_ver is defined) else rbenv_latest_release_tag }}"
 
     - name: Download and extract the archive.
       unarchive:
         src: "https://github.com/rbenv/rbenv/archive/refs/tags/\
-        v{{ rbenv_release_number }}.tar.gz"
+          v{{ rbenv_release_number }}.tar.gz"
         dest: '{{ rbenv_download_dir }}'
         remote_src: true
         mode: 0755
@@ -109,7 +109,7 @@
     - name: Filter desired Ruby-build version.
       set_fact:
         ruby_build_desired_ver: '{{ ruby_build_version |
-        regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+          regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
       when: ruby_build_version is defined
 
     - name: Install Ruby-build plugin.
@@ -119,8 +119,8 @@
             repo: https://github.com/rbenv/ruby-build.git
             dest: '{{ rbenv_install_dir }}/plugins/ruby-build'
             version: "{{ 'v' + ruby_build_desired_ver
-            if (ruby_build_desired_ver is defined)
-            else 'master' }}"
+              if (ruby_build_desired_ver is defined)
+              else 'master' }}"
 
       rescue:
         - name: Remove local repo directory in case of cloning failure.
@@ -133,8 +133,8 @@
             repo: https://github.com/rbenv/ruby-build.git
             dest: '{{ rbenv_install_dir }}/plugins/ruby-build'
             version: "{{ 'v' + ruby_build_desired_ver
-            if (ruby_build_desired_ver is defined)
-            else 'master' }}"
+              if (ruby_build_desired_ver is defined)
+              else 'master' }}"
 
       become: '{{ not rbenv_dirstatus.results[2].stat.writeable }}'
 
@@ -155,7 +155,7 @@
     - name: Filter desired ruby version.
       set_fact:
         ruby_desired_ver: '{{ ruby_version |
-        regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+          regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
 
     - name: Install Ruby.
       block:
@@ -173,7 +173,7 @@
         - name: Filter current version stdout.
           set_fact:
             ruby_current_ver: '{{ ruby_curr_ver.stdout |
-            regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
+              regex_search("[0-9]{1,}(\.[0-9]{1,}){0,2}") }}'
           when: ruby_curr_ver.rc == 0
 
         - name: Installation.
